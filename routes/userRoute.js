@@ -13,6 +13,12 @@ router.post(
   UserController.sendUserPasswordResetEmail
 );
 
+
+router.post(
+  "/Reset-Password/:id/:token",
+  UserController.userPasswordReset
+);
+
 //route level middleware
 //router.use("/changepassword", usermiddlewares.checkUserAuth);
 

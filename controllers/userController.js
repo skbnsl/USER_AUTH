@@ -1,6 +1,8 @@
 const UserModel = require("../models/user");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const transporter = require("../config/emailConfig");
+const dotenv = require("dotenv");
 
 class UserController {
   static userRegistration = async (req, res) => {
@@ -141,8 +143,71 @@ class UserController {
     const token = jwt.sign({ userID: user._id }, secret, {
       expiresIn: "15m",
     });
-    const link = "http://127.0.0.1:3000/api/user/reset/${user._id}/${token}";
+    const link = `http://127.0.0.1:3000/api/user/reset/${user._id}/${token}`;
     ///api/user/reser/:id/:token
+    console.log(link);
+    //send email
+
+    const mailOptions = {
+      from: process.env.EMAIL_FROM,
+      to: user.email,
+      subject: "Reset Password Link - LOCAL",
+      html: `<a href=${link}>Click Here</a> to Reset Your Password`,
+    };
+
+    // let info = await transporter.sendMail(mailOptions);
+    //console.log(info);
+    transporter.sendMail(mailOptions, function (error, info) {
+      if (error) {
+        console.log(error);
+      } else {
+        console.log("Email sent: " + info.response);
+      }
+    });
+
+    return res.send({
+      status: "success",
+      Message: "Password Reset Email sent... please check your Email",
+      //      email: info,
+    });
+  };
+
+  static userPasswordReset = async (req, res) => {
+    const { password, password_confirmation } = req.body;
+    const { id, token } = req.params;
+
+    const user = await UserModel.findById(id);
+    const new_secret = user._id + process.env.JWT_SECRET_KEY;
+    try {
+      jwt.verify(token, new_secret);
+      if (password && password_confirmation) {
+        if (password !== password_confirmation) {
+          return res.send({
+            status: "failed",
+            message: "password & password_confirmation does not match",
+          });
+        }
+        const salt = await bcrypt.genSalt(10);
+        const hashpassword = await bcrypt.hash(password, salt);
+        await UserModel.findByIdAndUpdate(user._id, {
+          $set: {
+            password: hashpassword,
+          },
+        });
+        return res.send({
+          status: "success",
+          message: "password Reset successfully",
+        });
+      } else {
+        return res.send({
+          status: "failed",
+          message: "All fields are required",
+        });
+      }
+    } catch (err) {
+      console.log(err);
+      return res.send({ status: "failed", message: "Invalid Token" });
+    }
   };
 }
 
